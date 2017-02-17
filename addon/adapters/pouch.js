@@ -41,7 +41,7 @@ export default DS.RESTAdapter.extend({
   _onInit : on('init', function()  {
     this._startChangesToStoreListener();
   }),
-  _startChangesToStoreListener: function() {
+  _startChangesToStoreListener: function () {
     var db = this.get('db');
     if (db && !this.changes) { // only run this once
       var onChangeListener = bind(this, 'onChange');
@@ -144,7 +144,7 @@ export default DS.RESTAdapter.extend({
   willDestroy: function() {
     this._stopChangesListener();
   },
-  
+
   _indexPromises: [],
 
   _init: function (store, type) {
@@ -181,7 +181,7 @@ export default DS.RESTAdapter.extend({
     if (type.documentType) {
       schemaDef['documentType'] = type.documentType;
     }
-
+    
     let config = getOwner(this).resolveRegistration('config:environment');
     // else it's new, so update
     this._schema.push(schemaDef);
@@ -196,36 +196,36 @@ export default DS.RESTAdapter.extend({
       var relDef = {},
           relModel = (typeof rel.type === 'string' ? store.modelFor(rel.type) : rel.type);
       if (relModel) {
-        let includeRel = true;
-        rel.options = rel.options || {};
-        if (typeof(rel.options.async) === "undefined") {
+      	let includeRel = true;
+      	rel.options = rel.options || {};
+      	if (typeof(rel.options.async) === "undefined") {
           rel.options.async = config.emberPouch && !Ember.isEmpty(config.emberPouch.async) ? config.emberPouch.async : true;//default true from https://github.com/emberjs/data/pull/3366
-        }
-        let options = Object.create(rel.options);
+      	}
+      	let options = Object.create(rel.options);
         if (rel.kind === 'hasMany' && !shouldSaveRelationship(self, rel)) {
-          let inverse = type.inverseFor(rel.key, store);
-          if (inverse) {
-            if (inverse.kind === 'belongsTo') {
+        	let inverse = type.inverseFor(rel.key, store);
+        	if (inverse) {
+	        	if (inverse.kind === 'belongsTo') {
               self._indexPromises.push(self.get('db').createIndex({index: { fields: ['data.' + inverse.name, '_id'] }}));
-              if (options.async) {
-                includeRel = false;
-              } else {
-                options.queryInverse = inverse.name;
-              }
-            }
-          }
+	        		if (options.async) {
+	        			includeRel = false;
+	        		} else {
+	        			options.queryInverse = inverse.name;
+	        		}
+	        	}
+	        }
         }
-
+        
         if (includeRel) {
-          relDef[rel.kind] = {
-            type: self.getRecordTypeName(relModel),
-            options: options
-          };
-          if (!schemaDef.relations) {
-            schemaDef.relations = {};
-          }
-          schemaDef.relations[rel.key] = relDef;
-        }
+	        relDef[rel.kind] = {
+	          type: self.getRecordTypeName(relModel),
+	          options: options
+	        };
+	        if (!schemaDef.relations) {
+	          schemaDef.relations = {};
+	        }
+	        schemaDef.relations[rel.key] = relDef;
+	    }
         self._init(store, relModel);
       }
     });
@@ -260,58 +260,6 @@ export default DS.RESTAdapter.extend({
   },
 
   /**
-   * Return key that conform to data adapter
-   * ex: 'name' become 'data.name'
-   */
-  _dataKey: function(key) {
-    var dataKey ='data.' + key;
-    return ""+ dataKey + "";
-  },
-
-  /**
-   * Returns the modified selector key to comform data key
-   * Ex: selector: {name: 'Mario'} wil become selector: {'data.name': 'Mario'}
-   */
-  _buildSelector: function(selector) {
-    var dataSelector = {};
-    var selectorKeys = [];
-
-    for (var key in selector) {
-      if(selector.hasOwnProperty(key)){
-        selectorKeys.push(key);
-      }
-    }
-
-    selectorKeys.forEach(function(key) {
-      var dataKey = this._dataKey(key);
-      dataSelector[dataKey] = selector[key];
-    }.bind(this));
-
-    return dataSelector;
-  },
-
-  /**
-   * Returns the modified sort key
-   * Ex: sort: ['series'] will become ['data.series']
-   * Ex: sort: [{series: 'desc'}] will became [{'data.series': 'desc'}]
-   */
-  _buildSort: function(sort) {
-    return sort.map(function (value) {
-      var sortKey = {};
-      if (typeof value === 'object' && value !== null) {
-        for (var key in value) {
-          if(value.hasOwnProperty(key)){
-            sortKey[this._dataKey(key)] = value[key];
-          }
-        }
-      } else {
-        return this._dataKey(value);
-      }
-      return sortKey;
-    }.bind(this));
-  },
-
-  /**
    * Returns the string to use for the model name part of the PouchDB document
    * ID for records of the given ember-data type.
    *
@@ -337,21 +285,21 @@ export default DS.RESTAdapter.extend({
     this._init(store, type);
     return this.get('db').rel.find(this.getRecordTypeName(type), ids);
   },
-
+  
   findHasMany: function(store, record, link, rel) {
-    let inverse = record.type.inverseFor(rel.key, store);
-    if (inverse && inverse.kind === 'belongsTo') {
-      return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
+  	let inverse = record.type.inverseFor(rel.key, store);
+  	if (inverse && inverse.kind === 'belongsTo') {
+  		return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
     } else {
-      let result = {};
-      result[pluralize(rel.type)] = [];
-      return result; //data;
-    }
+  		let result = {};
+  		result[pluralize(rel.type)] = [];
+  		return result;//data;
+  	}
   },
 
   query: function(store, type, query) {
     this._init(store, type);
-
+    
     var recordTypeName = this.getRecordTypeName(type);
     var db = this.get('db');
 
@@ -371,7 +319,7 @@ export default DS.RESTAdapter.extend({
       queryParams.skip = query.skip;
     }
 
-    return db.find(queryParams).then(pouchRes => db.rel.parseRelDocs(recordTypeName, pouchRes.docs));
+    return this.get('db').rel.query(this.getRecordTypeName(type), query);
   },
 
   queryRecord: function(store, type, query) {
