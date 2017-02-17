@@ -127,19 +127,23 @@ test('can query multi-field queries', function (assert) {
   var done = assert.async();
   Ember.RSVP.Promise.resolve().then(() => {
     return this.db().createIndex({ index: {
-      fields: ['data.series', 'data.debut'] }
+      fields: ['data.series', 'data.debut', '_id'] }
+      //_id needs to come last to be able to sort on series and debug
+      //with _id first the index wont match, which makes sense,
+      //sinse _id first in the index would always sort in it first
     }).then(() => {
       return this.db().bulkDocs([
         { _id: 'smasher_2_mario', data: { name: 'Mario', series: 'Mario', debut: 1981 }},
         { _id: 'smasher_2_puff', data: { name: 'Jigglypuff', series: 'Pokemon', debut: 1996 }},
         { _id: 'smasher_2_link', data: { name: 'Link', series: 'Zelda', debut: 1986 }},
         { _id: 'smasher_2_dk', data: { name: 'Donkey Kong', series: 'Mario', debut: 1981 }},
-        { _id: 'smasher_2_pika', data: { name: 'Pikachu', series: 'Pokemon', _id: 'pikachu', debut: 1996 }}
+        { _id: 'smasher_2_pika', data: { name: 'Pikachu', series: 'Pokemon', _id: 'pikachu', debut: 1996 }},
+        { _id: 'dummy_2_dummy', data: { name: 'shouldnot', series: 'Mario', _id: 'dummy', debut: 2017 }},
       ]);
     });
   }).then(() => {
     return this.store().query('smasher', {
-      filter: {series: 'Mario' },
+      filter: {series: 'Mario', debut: { $gt: 0 } },//$exists: true should also work, but doesn't
       sort: [
         {series: 'desc'},
         {debut: 'desc'}]
@@ -186,7 +190,7 @@ test('can query one record', function (assert) {
   var done = assert.async();
   Ember.RSVP.Promise.resolve().then(() => {
     return this.db().createIndex({ index: {
-      fields: ['data.flavor'] }
+      fields: ['_id', 'data.flavor'] }
     }).then(() => {
       return this.db().bulkDocs(getDocsForRelations());
     });
@@ -205,7 +209,7 @@ test('can query one associated records', function (assert) {
   var done = assert.async();
   Ember.RSVP.Promise.resolve().then(() => {
     return this.db().createIndex({ index: {
-      fields: ['data.flavor'] }
+      fields: ['_id', 'data.flavor'] }
     }).then(() => {
       return this.db().bulkDocs(getDocsForRelations());
     });
