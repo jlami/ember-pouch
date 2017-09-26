@@ -39,7 +39,7 @@ export default DS.RESTAdapter.extend({
   _onInit : on('init', function()  {
     this._startChangesToStoreListener();
   }),
-  _startChangesToStoreListener: function() {
+  _startChangesToStoreListener: function () {
     var db = this.get('db');
     if (db && !this.changes) { // only run this once
       var onChangeListener = bind(this, 'onChange');
@@ -140,6 +140,11 @@ export default DS.RESTAdapter.extend({
 
   willDestroy: function() {
     this._stopChangesListener();
+    for (let id in this.waitingForConsistency) {
+      let promise = this.waitingForConsistency[id];
+      promise.reject("destroying adapter");
+    }
+    this.waitingForConsistency = {};
   },
 
   _init: function (store, type) {
