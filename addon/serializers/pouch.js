@@ -41,6 +41,12 @@ var Serializer = DS.RESTSerializer.extend({
     }
   },
 
+  serializeBelongsTo(snapshot, json, relationship) {
+    if (relationship.options.persist !== false) {
+      this._super.apply(this, arguments);
+    }
+  },
+
   _isAttachment(attribute) {
     return ['attachment', 'attachments'].indexOf(attribute.type) !== -1;
   },
@@ -89,7 +95,7 @@ var Serializer = DS.RESTSerializer.extend({
     let relationships = this._super(...arguments);
 
     modelClass.eachRelationship((key, relationshipMeta) => {
-      if (relationshipMeta.kind === 'hasMany' && this._getDontsave(relationshipMeta) && !!relationshipMeta.options.async) {
+      if (relationshipMeta.kind === 'hasMany' && this._getDontsave(relationshipMeta) && !!relationshipMeta.options.async || relationshipMeta.kind == 'belongsTo' && relationshipMeta.options.persist === false) {
         relationships[key] = { links: { related: key } };
       }
     });

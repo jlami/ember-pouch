@@ -198,7 +198,7 @@ export default DS.RESTAdapter.extend({
           rel.options.async = config.emberpouch && !Ember.isEmpty(config.emberpouch.async) ? config.emberpouch.async : true;//default true from https://github.com/emberjs/data/pull/3366
         }
         let options = Object.create(rel.options);
-        if (rel.kind === 'hasMany' && (options.dontsave || typeof(options.dontsave) === 'undefined' && dontsavedefault)) {
+        if ((rel.kind === 'hasMany' && (options.dontsave || typeof(options.dontsave) === 'undefined' && dontsavedefault)) || (rel.kind === 'belongsTo' && options.persist === false)) {
           let inverse = type.inverseFor(rel.key, store);
           if (inverse) {
             if (inverse.kind === 'belongsTo') {
@@ -335,6 +335,7 @@ export default DS.RESTAdapter.extend({
   },
 
   findHasMany: function(store, record, link, rel) {
+    this._init(store, record.type);
     let inverse = record.type.inverseFor(rel.key, store);
     if (inverse && inverse.kind === 'belongsTo') {
       return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
@@ -343,6 +344,10 @@ export default DS.RESTAdapter.extend({
       result[pluralize(rel.type)] = [];
       return result; //data;
     }
+  },
+
+  findBelongsTo: function(store, record, link, rel) {
+    return this.findHasMany(store, record, link, rel);
   },
 
   query: function(store, type, query) {
