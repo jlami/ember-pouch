@@ -91,6 +91,13 @@ var Serializer = DS.RESTSerializer.extend({
 
     return relationships;
   },
+  
+  normalizeSaveResponse(...args) {
+    let result = this._super(...args);
+    result.data.attributes = {rev: result.data.attributes.rev};
+    delete result.data.relationships;
+    return result;
+  },
 
 });
 

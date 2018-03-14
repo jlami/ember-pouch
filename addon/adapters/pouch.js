@@ -107,25 +107,27 @@ export default DS.RESTAdapter.extend({
       return;
     }
 
-    var recordInStore = store.peekRecord(obj.type, obj.id);
-    if (!recordInStore) {
-      // The record hasn't been loaded into the store; no need to reload its data.
-      this.unloadedDocumentChanged(obj);
-      return;
-    }
-    if (!recordInStore.get('isLoaded') || recordInStore.get('rev') === change.changes[0].rev || recordInStore.get('hasDirtyAttributes')) {
-      // The record either hasn't loaded yet or has unpersisted local changes.
-      // In either case, we don't want to refresh it in the store
-      // (and for some substates, attempting to do so will result in an error).
-      // We also ignore the change if we already have the latest revision
-      return;
-    }
+    Ember.run.later(() => {
+      var recordInStore = store.peekRecord(obj.type, obj.id);
+      if (!recordInStore) {
+        // The record hasn't been loaded into the store; no need to reload its data.
+        this.unloadedDocumentChanged(obj);
+        return;
+      }
+      if (!recordInStore.get('isLoaded') || recordInStore.get('rev') === change.changes[0].rev || recordInStore.get('hasDirtyAttributes')) {
+        // The record either hasn't loaded yet or has unpersisted local changes.
+        // In either case, we don't want to refresh it in the store
+        // (and for some substates, attempting to do so will result in an error).
+        // We also ignore the change if we already have the latest revision
+        return;
+      }
 
-    if (change.deleted) {
-      store.unloadRecord(recordInStore);
-    } else {
-      recordInStore.reload();
-    }
+      if (change.deleted) {
+        store.unloadRecord(recordInStore);
+      } else {
+        recordInStore.reload();
+      }
+    });
   },
 
   unloadedDocumentChanged: function(/* obj */) {
