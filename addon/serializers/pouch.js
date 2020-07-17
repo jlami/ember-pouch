@@ -78,12 +78,21 @@ var Serializer = DS.RESTSerializer.extend({
     return attributes;
   },
 
-  extractRelationships(modelClass) {
+  extractRelationships(modelClass, dataHash) {
     let relationships = this._super(...arguments);
 
     modelClass.eachRelationship((key, relationshipMeta) => {
-      if (relationshipMeta.kind === 'hasMany' && !shouldSaveRelationship(this, relationshipMeta) && !!relationshipMeta.options.async) {
-        relationships[key] = { links: { related: key } };
+      let inverse = modelClass.inverseFor(key, this.store);
+      console.log(inverse);
+      if (relationshipMeta.kind === 'hasMany') {
+        if (inverse.kind === 'hasMany') {
+          relationships[key] = relationships[key] || {};
+          relationships[key].links = { related: key };//data already done in super
+        } else {
+          if (!shouldSaveRelationship(this, relationshipMeta) && !!relationshipMeta.options.async) {
+            relationships[key] = { links: { related: key } };
+          }
+        }
       }
     });
 

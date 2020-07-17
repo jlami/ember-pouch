@@ -232,6 +232,39 @@ export default DS.RESTAdapter.extend({
               } else {
                 options.queryInverse = inverse.name;
               }
+            } else {
+              //debugger;
+              assert('hasMany relationship expected', inverse.kind === 'hasMany');
+              
+              //TODO: singularize
+              includeRel = false;
+              
+              let inv2 = inverse.type.inverseFor(inverse.name, store);
+        
+              let relOrder = rel.name > inverse.name;
+              let relA =  relOrder ? inv2 : inverse;
+              let relB = !relOrder ? inv2 : inverse;
+              
+              let name = this.many2manyTableName(relA, relB);
+              
+              let m2mDef = this._schema.find(x => x.singular === name);
+              if (!m2mDef) {
+                indexPromises.push(self.get('db').createIndex({index: { fields: ['data.' + relA.name, '_id'] }}));
+                indexPromises.push(self.get('db').createIndex({index: { fields: ['data.' + relB.name, '_id'] }}));
+                
+                let m2mRel = {};
+                //TODO: use relA.key here or in index?
+                m2mRel[relA.name] = { belongsTo: { type: relA.name, options: { async: false }}};//TODO: async=true and postprocess?
+                m2mRel[relB.name] = { belongsTo: { type: relB.name, options: { async: false }}};
+                
+                m2mDef = {
+                  singular: name,
+                  plural: name + 's',
+                  relations: m2mRel,
+                };
+                
+                this._schema.push(m2mDef);
+              }
             }
           }
         }
@@ -365,17 +398,41 @@ export default DS.RESTAdapter.extend({
     await this._init(store, type);
     return this.get('db').rel.find(this.getRecordTypeName(type), ids);
   },
+  
+  many2manyTableName(relA, relB) {
+    return relA.type.modelName + "2" + relB.type.modelName;
+  },
 
   findHasMany: async function(store, record, link, rel) {
     await this._init(store, record.type);
     let inverse = record.type.inverseFor(rel.key, store);
-    if (inverse && inverse.kind === 'belongsTo') {
-      return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
-    } else {
-      let result = {};
-      result[pluralize(rel.type)] = [];
-      return result; //data;
+    if (inverse) {
+      if (inverse.kind === 'belongsTo') {
+        return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
+      } else if (inverse.kind === 'hasMany') {
+        debugger;
+        let inv2 = inverse.type.inverseFor(inverse.name, store);
+        
+        let relOrder = rel.name > inverse.name;
+        let relA =  relOrder ? inv2 : inverse;
+        let relB = !relOrder ? inv2 : inverse;
+        
+        let helperTableName = this.many2manyTableName(relA, relB);
+        if (helperTableName) {
+          let helperData = await this.get('db').rel.findHasMany(helperTableName, inverse.name, record.id);
+          let result = {};
+          result[pluralize(rel.type)] = helperData[rel.key] || [];
+          result[pluralize(rel.type)].forEach(x => x[inverse.name] = [record.id]);
+          //let many = helperData[helperTableName+'s'].map(x => x[inv2.name]);
+          //console.log(many);
+          return result;
+        }
+      }
     }
+    
+    let result = {};
+    result[pluralize(rel.type)] = [];
+    return result; //data;
   },
 
   query: async function(store, type, query) {
