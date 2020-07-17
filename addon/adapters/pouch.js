@@ -254,8 +254,8 @@ export default DS.RESTAdapter.extend({
                 
                 let m2mRel = {};
                 //TODO: use relA.key here or in index?
-                m2mRel[relA.name] = { belongsTo: { type: relA.name, options: { async: false }}};//TODO: async=true and postprocess?
-                m2mRel[relB.name] = { belongsTo: { type: relB.name, options: { async: false }}};
+                m2mRel[relA.name] = { belongsTo: { type: relA.name, options: { async: true }}};//TODO: async=true and postprocess?
+                m2mRel[relB.name] = { belongsTo: { type: relB.name, options: { async: true }}};
                 
                 m2mDef = {
                   singular: name,
@@ -410,7 +410,7 @@ export default DS.RESTAdapter.extend({
       if (inverse.kind === 'belongsTo') {
         return this.get('db').rel.findHasMany(camelize(rel.type), inverse.name, record.id);
       } else if (inverse.kind === 'hasMany') {
-        debugger;
+        //debugger;
         let inv2 = inverse.type.inverseFor(inverse.name, store);
         
         let relOrder = rel.name > inverse.name;
@@ -421,8 +421,9 @@ export default DS.RESTAdapter.extend({
         if (helperTableName) {
           let helperData = await this.get('db').rel.findHasMany(helperTableName, inverse.name, record.id);
           let result = {};
-          result[pluralize(rel.type)] = helperData[rel.key] || [];
-          result[pluralize(rel.type)].forEach(x => x[inverse.name] = [record.id]);
+          result.data = helperData[helperTableName+'s'].map(x => { return {type: rel.type, id: x[inv2.name]}; });
+          //result[pluralize(rel.type)] = helperData[rel.key] || [];
+          //result[pluralize(rel.type)].forEach(x => x[inverse.name] = [record.id]);
           //let many = helperData[helperTableName+'s'].map(x => x[inv2.name]);
           //console.log(many);
           return result;

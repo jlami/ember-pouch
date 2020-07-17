@@ -99,6 +99,10 @@ var Serializer = DS.RESTSerializer.extend({
     return relationships;
   },
 
+  normalizeFindHasManyResponse(store, primaryModelClass, payload, id, requestType) {
+    if (payload.data) return payload;//TODO: only do this for Objects, not arrays (otherwise models with type 'data' won't be able to work
+    return this._super(...arguments);
+  },
 });
 
 // DEPRECATION: The private method _shouldSerializeHasMany has been promoted to the public API
