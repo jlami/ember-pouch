@@ -420,8 +420,27 @@ export default DS.RESTAdapter.extend({
         let helperTableName = this.many2manyTableName(relA, relB);
         if (helperTableName) {
           let helperData = await this.get('db').rel.findHasMany(helperTableName, inverse.name, record.id);
+          
+          //return this.findMany(store, inverse.type, )//can't only load side B because this will mark B.toA as loaded without having all the data
           let result = {};
-          result.data = helperData[helperTableName+'s'].map(x => { return {type: rel.type, id: x[inv2.name]}; });
+          result._m2m = {};
+          let relationships = {};
+          let typeName = this.getRecordTypeName(record.type);
+          relationships[pluralize(rel.type)] = (helperData[helperTableName+'s'] || []).map(x => { return {type: rel.type, id: x[inv2.name]}; });
+          //result._m2m.data = [{id: record.id, type: typeName, relationships}];
+          
+          let modelClass = store.modelFor(rel.type);
+          let serializer = store.serializerFor(rel.type);
+          //TODO: filter records to load with store.hasRecordForId(typeName, id)
+          let response = await this.findMany(store, inverse.type, (helperData[helperTableName+'s'] || []).map(x => x[inv2.name]));
+          let normalized = serializer.normalizeArrayResponse(store, modelClass, response, record.id, 'findMany');
+  
+          result._m2m.included = normalized.data;//TODO: add normalized.included too?
+          //[{id: record.id, type: typeName, relationships}];//does not work because ember data expects .data
+          //[pluralize(typeName)]
+
+          result._m2m.data = helperData[helperTableName+'s'].map(x => { return {type: rel.type, id: x[inv2.name]}; });
+          
           //result[pluralize(rel.type)] = helperData[rel.key] || [];
           //result[pluralize(rel.type)].forEach(x => x[inverse.name] = [record.id]);
           //let many = helperData[helperTableName+'s'].map(x => x[inv2.name]);
@@ -558,6 +577,7 @@ export default DS.RESTAdapter.extend({
       Object.assign(data, saved);
       let result = {};
       result[pluralize(typeName)] = [data];
+      //TODO: update m2m data
       return result;
     } catch(e) {
       delete this.createdRecords[id];
@@ -567,6 +587,7 @@ export default DS.RESTAdapter.extend({
 
   updateRecord: async function (store, type, record) {
     await this._init(store, type);
+    //TODO: update m2m data
     var data = this._recordToData(store, type, record);
     let typeName = this.getRecordTypeName(type);
     let saved = await this.get('db').rel.save(typeName, data);
@@ -578,6 +599,7 @@ export default DS.RESTAdapter.extend({
 
   deleteRecord: async function (store, type, record) {
     await this._init(store, type);
+    //TODO: delete m2m data
     var data = this._recordToData(store, type, record);
     return this.get('db').rel.del(this.getRecordTypeName(type), data)
       .then(extractDeleteRecord);

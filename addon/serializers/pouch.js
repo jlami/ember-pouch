@@ -100,7 +100,7 @@ var Serializer = DS.RESTSerializer.extend({
   },
 
   normalizeFindHasManyResponse(store, primaryModelClass, payload, id, requestType) {
-    if (payload.data) return payload;//TODO: only do this for Objects, not arrays (otherwise models with type 'data' won't be able to work
+    if (payload._m2m) return payload._m2m;//TODO: only do this for Objects, not arrays (otherwise models with type 'data' won't be able to work
     return this._super(...arguments);
   },
 });
