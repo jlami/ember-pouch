@@ -100,6 +100,7 @@ export default DS.RESTAdapter.extend({
     } catch (e) {
       // The record refers to a model which this version of the application
       // does not have.
+      //TODO: @m2m handle m2m records
       return;
     }
 
@@ -264,6 +265,8 @@ export default DS.RESTAdapter.extend({
                 };
                 
                 this._schema.push(m2mDef);
+                
+                this._m2mcache[name] = [{}, {}];//array of sides, with map of records by id
               }
             }
           }
@@ -558,6 +561,65 @@ export default DS.RESTAdapter.extend({
       }
     });
   },
+  
+  _m2mcache: {},
+  //TODO: make helper class? m2mRel, with m2m.sideA, m2m.sideB and 2 caches?
+  m2mSetCached(tableName, relSide, id, records) {
+    this._m2mcache[tableName][relSide][id] = records;
+  },
+  
+  m2mGetCached(tableName, relSide, id) {
+    return this._m2mcache[tableName][relSide][id];
+  },
+  
+  m2mAddRecords(records) {
+    //filter records that have unsaved ids
+    //put batch
+    //return array of inserted rows with {id, rev, relAModel, relBModel}
+    //relAModel is ref, so save of new record will get correct id
+    return [];
+  },
+  
+  async m2mDeleteRecords(m2mName, relSide, cache, id, ids) {
+    //should also remove other side
+    let deletes = cache.map('id').minus(ids);
+    
+    //TODO: this is all at once, maybe do some in series, or max X at a time?
+    await Promise.all(deletes.map(async x => {
+        let inverseCache = m2mGetCached(m2mName, 1-relSide, x[relSide]);
+        inverseCache = inverseCache.filter(x => x[1-relSide] == id);
+        return await db.delete(x.id, x.rev);
+    }));
+  },
+  
+  async m2mCreate(store, type, record) {
+    //mark this record as cached
+    //foreach m2mrel {
+      let many = record.hasMany(relkey).mapBy('record');
+      m2mSetCached(tableName, relSide, record.id, many);//will not work after unloadAll?
+      
+      //can't store only ids, as other side can be 'new' and should be remembered for later
+      //otherwise {ids: true} could be 2nd par to record.hasMany
+      
+      //need to update inverse relationship too :|
+    //}
+  },
+  
+  async m2mUpdate(store, type, record) {
+    let model = record.record;
+    //foreach m2m relationship:
+    let cache = m2mGetCached(m2mName, relSide, record.id)
+    if (cache) {
+      let ids = (await model.get(relName)).mapBy('id');//make sure it is really cached
+      //would snapshot.hasMany(relName, {ids: true}) be better?
+      
+      let inserts = ids.minus(cache);
+      
+      await this.m2mDeleteRecords(m2mName, relSide, cache, record.id, ids);
+      cache = cache.concat(await this.m2mAddRecords(m2mName, relSide, record.id, inserts));
+      m2mSetCached(m2mName, relSide, record.id, cache);
+    }
+  },
 
   createdRecords: null,
   createRecord: async function(store, type, record) {
@@ -577,7 +639,9 @@ export default DS.RESTAdapter.extend({
       Object.assign(data, saved);
       let result = {};
       result[pluralize(typeName)] = [data];
-      //TODO: update m2m data
+      
+      await this.m2mCreate(store, type, record);
+      
       return result;
     } catch(e) {
       delete this.createdRecords[id];
@@ -587,10 +651,10 @@ export default DS.RESTAdapter.extend({
 
   updateRecord: async function (store, type, record) {
     await this._init(store, type);
-    //TODO: update m2m data
     var data = this._recordToData(store, type, record);
     let typeName = this.getRecordTypeName(type);
     let saved = await this.get('db').rel.save(typeName, data);
+    await this.m2mUpdate(store, type, record);
     Object.assign(data, saved);//TODO: could only set .rev
     let result = {};
     result[pluralize(typeName)] = [data];
