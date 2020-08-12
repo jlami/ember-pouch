@@ -8,6 +8,7 @@ import { on } from '@ember/object/evented';
 import { classify, camelize } from '@ember/string';
 import DS from 'ember-data';
 import { pluralize } from 'ember-inflector';
+import Model from '../model';
 //import BelongsToRelationship from 'ember-data/-private/system/relationships/state/belongs-to';
 
 import {
@@ -199,6 +200,44 @@ export default DS.RESTAdapter.extend({
     // We check the type of `rel.type`because with ember-data beta 19
     // `rel.type` switched from DS.Model to string
     
+    //many2many prepass
+    type.eachRelationship((_relName, rel) => {
+      if (rel.kind === 'hasMany') {
+        let inverse = type.inverseFor(rel.key, store);
+        if (inverse && inverse.kind === 'hasMany') {
+          let inv2 = inverse.type.inverseFor(inverse.name, store);
+        
+          let relOrder = rel.name > inverse.name;
+          let relA =  relOrder ? inv2 : inverse;
+          let relB = !relOrder ? inv2 : inverse;
+          
+          let name = this.many2manyTableName(relA, relB);
+          
+          var tableColumns = {};
+          tableColumns[relA.type.modelName] = DS.belongsTo(relA.type.modelName, {inverse: 'm2m_' + relA.name});
+          tableColumns[relB.type.modelName] = DS.belongsTo(relB.type.modelName, {inverse: 'm2m_' + relB.name});
+          Ember.getOwner(store).register('model:' + name, Model.extend(tableColumns));
+          
+          let relAProps = {};
+          relAProps[relB.name] = Ember.computed.mapBy('m2m_' + relB.name, relB.type.modelName);
+          relAProps['m2m_' + relB.name] = DS.hasMany(name);
+          
+          let relBProps = {};
+          relBProps[relA.name] = Ember.computed.mapBy('m2m_' + relA.name, relA.type.modelName);
+          relBProps['m2m_' + relA.name] = DS.hasMany(name);
+          
+          relA.type.reopen(relBProps);
+          relB.type.reopen(relAProps);
+          
+          Ember.notifyPropertyChange(relA.type, 'relationshipsByName');
+          Ember.notifyPropertyChange(relB.type, 'relationshipsByName');
+          Ember.notifyPropertyChange(relA.type, 'relationshipsObject');
+          Ember.notifyPropertyChange(relB.type, 'relationshipsObject');
+          console.log(relA.type);
+        }
+      }
+    });
+    
     var rels = [];//extra array is needed since type.relationships/byName return a Map that is not iterable
     type.eachRelationship((_relName, rel) => rels.push(rel));
     
@@ -259,6 +298,10 @@ export default DS.RESTAdapter.extend({
         this._indexPromises = this._indexPromises.filter(x => !indexPromises.includes(x));
       });
     }
+  },
+  
+  many2manyTableName(relA, relB) {
+    return relA.type.modelName + "2" + relB.type.modelName;
   },
 
   _recordToData: function (store, type, record) {
